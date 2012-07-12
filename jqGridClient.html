@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+
+		<title>Client Side jgGrid Demo</title>
+
+		<link href="http://ajax.aspnetcdn.com/ajax/jquery.ui/1.8.10/themes/cupertino/jquery-ui.css" rel="Stylesheet" type="text/css"/>
+		<link href="css/ui.jqgrid.css" rel="Stylesheet" type="text/css"/>
+
+		<!--[if IE 7]>
+		<script type="text/javascript" src="../js/json2.js"></script>
+		<![endif]-->
+
+		<script src="http://ajax.aspnetcdn.com/ajax/jquery/jquery-1.7.2.js"></script>  
+    	<script src="http://ajax.aspnetcdn.com/ajax/jquery.ui/1.8.13/jquery-ui.js"></script>  
+		<script type="text/javascript" src="js/jquery.jqGrid.src.js"></script>
+		<script type="text/javascript" src="js/grid.locale-en.js"></script>
+
+		<script type="text/javascript">
+		
+				
+		//private methods
+		var getUniqueId = function(baseName){
+			var uid = baseName;
+			var i = 1;
+			while($('#' + uid).length > 0)
+			{
+				//already exists
+				uid = baseName + '_' + i++;
+			}
+			
+			return uid;
+		}
+		
+			/*Add a grid control to the page
+			 * @elemId: (optional) target DOM element id to hold the grid; if not specified, it will be appended to the end of the page;
+			 * @title: grid title
+			 * @columnModel: grid column meta-data in the format of [{name: 'col1', title: 'Column 1',sortable: false, editable:true, edittype: "text", width: 150}, ...]
+			 * @insertBefore: (optional) selector for inserting the grid before an element (e.g. before hint box)
+			 */
+			var addGrid = function(options) {
+				var elemId = options.elemId, title = options.title, columnModel = options.columnModel, insertBefore = options.insertBefore;				
+
+				//locate where to create grid
+				if(!elemId)
+					elemId = getUniqueId('RtsGrid');
+				var grid = $('#' + elemId);
+				if(grid.length == 0) {
+					grid = $('<table id="' + elemId + '"></table>');
+					if(insertBefore && $(insertBefore).length > 0) {
+						grid.insertBefore(insertBefore);
+					} else {
+						$('body').append(grid);
+					}
+				}
+
+				var pgEdit = elemId + '_pg_edit';
+				var pgAdd = elemId + '_pg_add';
+				var pgDelete = elemId + '_pg_delete';
+				var pager = getUniqueId('RtsGridPager');
+				$('<div id="' + pager + '"></div>').insertAfter(grid); //pager
+
+				//retreive column names from model
+				var colNames = [];
+				if(columnModel) {
+					for(var i = 0; i < columnModel.length; i++) {
+						colNames.push(columnModel[i].title);
+					}
+				}
+
+				var lastSel = -1; //last selected row index (starting from 1)
+				
+				//create grid
+				grid.jqGrid({
+					datatype : "local",
+					editurl : 'clientArray',
+					data : {},
+					//loadonce : true,
+
+					colNames : colNames,
+					colModel : columnModel,
+
+					caption : title,
+					height : 200,
+					//shrinkToFit : true, //if you want grid to auto adjust column width for you
+
+					pager : '#' + pager,
+					pgtext : '',
+					pgbuttons : false,
+					pginput : false,
+					toppager : true, //top toolbar
+
+					onSelectRow : function(id) {
+
+						if(id && id !== lastSel) {
+							grid.jqGrid('saveRow', lastSel, false, 'clientArray');
+							//select another row to quit editing on previous row
+						}
+						lastSel = id;
+
+						$('#' + pgEdit).removeClass('ui-state-disabled');
+						//jquery ui class
+						$('#' + pgDelete).removeClass('ui-state-disabled');
+					},
+					ondblClickRow : function() {
+						var rowId = grid.jqGrid('getGridParam', 'selrow');
+						//double click to start editing
+						grid.jqGrid('editRow', rowId, true);
+					}
+				}).jqGrid('bindKeys', {
+					onEnter : function(rowId) {
+						grid.jqGrid('saveRow', lastSel, true, 'clientArray');
+						//enter to quit editing
+					}
+				});
+
+				//trick to create top toolbar ( you can remove those if you don't want it)
+				grid.jqGrid('navGrid', '#' + pager, {
+					edit : false,
+					add : false,
+					del : false,
+					search : false,
+					refresh : false,
+					cloneToTop : true
+				}).jqGrid('navButtonAdd', '#' + grid[0].id + '_toppager_left', {
+					id : pgAdd,
+					caption : 'Add',
+					buttonicon : 'ui-icon-plus',
+					onClickButton : function() {
+						var total = grid.jqGrid('getGridParam', 'reccount');
+						total = parseInt(total, 10);
+						lastSel = total;
+						grid.jqGrid('addRow', {
+							rowID : total + 1, //set the real row ID instead of 'new_row'
+							position : 'last',
+						});
+					}
+				}).jqGrid('navButtonAdd', '#' + grid[0].id + '_toppager_left', {
+					id : pgEdit,
+					caption : 'Edit',
+					buttonicon : 'ui-icon-pencil',
+					onClickButton : function() {
+						var rowId = grid.jqGrid('getGridParam', 'selrow');
+						grid.jqGrid('editRow', rowId, true);
+					}
+				}).jqGrid('navButtonAdd', '#' + grid[0].id + '_toppager_left', {
+					id : pgDelete,
+					caption : 'Delete',
+					buttonicon : 'ui-icon-trash',
+					onClickButton : function() {
+						var rowId = grid.jqGrid('getGridParam', 'selrow');
+
+						grid.jqGrid('delGridRow', rowId, {
+							reloadAfterSubmit : false,
+							beforeSubmit : function(postdata) {
+								return postdata;
+								//this callback is necessary to avoid http error code on delete confirmation dialog
+							}
+						});
+
+					}
+				});
+
+				$('#' + pgEdit).addClass('ui-state-disabled'); //jquery ui class for disabled				
+				$('#' + pgDelete).addClass('ui-state-disabled');
+
+				
+				//var topPagerDiv = $('#' + grid[0].id + '_toppager')[0]; //if you want to operate (like deletion) buttons in toppager
+				
+				$('#' + pager).hide(); //if you don't want the bottom pager
+
+				return grid;
+			}
+
+			$(document).ready(function() {
+				//generates your data either from ajax call or client side injection
+				var mydata = [{
+					'name' : 'datatype option',
+					'value' : 'local',
+					'description' : 'set datatype to local to use local variable data source'
+				}, {
+					'name' : 'editurl option',
+					'value' : 'clientArray',
+					'description' : 'save data changes to local also instead of posting it to server side (maybe later)'
+				}, {
+					'name' : 'getRowData function',
+					'value' : '(param: row Id or nothing)',
+					'description' : 'use this method to retreive latest data on UI; pass row number (starting from 1) to get data on that row, or pass nothing to get all rows'
+				}, {
+					'name' : 'getGridParam function',
+					'value' : '(param: param name)',
+					'description' : 'use this method to retreive any parameter you need, like selected row Id ("selrow"), total row count ("reccount") etc.'
+				}];
+
+				//define the columns
+				var colModel = [{
+					title : 'Name', //header
+					name : 'name', //all other properties are column model
+					editable : true,
+					edittype : "text",
+					width : 150
+				}, {
+					title : 'Value',
+					name : 'value',
+					editable : true,
+					edittype : "text",
+					width : 200
+				}, {
+					title : 'Description',
+					name : 'description',
+					editable : true,
+					edittype : "text"
+				}];
+
+				//create a grid (jqGrid)
+				var grid = addGrid({
+					elemId : 'grid100', //id of the new grid
+					title : 'Important options to set',
+					columnModel : colModel
+				});
+
+				//resize & adjust position
+				grid.jqGrid('setGridWidth', $('body').width() - 100);
+
+				//set data and reload
+				grid.jqGrid('setGridParam', {
+					data : mydata
+				}).trigger("reloadGrid");
+				
+				$('#SaveButton').click(function(){
+					var data = grid.jqGrid('getRowData');	
+					console.log(data);
+				});
+				
+
+			});
+			
+			
+		</script>
+
+	</head>
+	<body>
+		<header></header>
+		
+		<table id='grid100' ></table>
+		<input type='button' id='SaveButton' value="Test Save" title="Print current data on UI (console.log)">
+		
+		<footer style="margin-top:20px;">
+			Under MIT license. <br>
+			This demos pure client side jqGrid without calling any server URL, to save your life from googling and stackoverflowing.. <br>
+			https://github.com/tedyyu/jqGrid.client
+		</footer>
+	</body>
+</html>
